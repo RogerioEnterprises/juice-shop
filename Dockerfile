@@ -1,15 +1,21 @@
 FROM node:18 as installer
+COPY . /juice-shop
+WORKDIR /juice-shop
+RUN npm i -g typescript ts-node
+RUN npm install --omit=dev --unsafe-perm
+RUN npm dedupe
+RUN rm -rf frontend/node_modules
+RUN rm -rf frontend/.angular
+RUN rm -rf frontend/src/assets
+RUN mkdir logs
+RUN chown -R 65532 logs
+RUN chgrp -R 0 ftp/ frontend/dist/ logs/ data/ i18n/
+RUN chmod -R g=u ftp/ frontend/dist/ logs/ data/ i18n/
+RUN rm data/chatbot/botDefaultTrainingData.json || true
+RUN rm ftp/legal.md || true
+RUN rm i18n/*.json || true
 
-RUN apt-get -y update && apt-get -y install ca-certificates apt-transport-https
-
-RUN echo 'deb     [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main \n\
-deb-src [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main \n\
-deb     [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main \n\
-deb-src [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main' >> /etc/apt/sources.list
-
-RUN apt-get -y update && apt-get -y install \
-    liblog4j2-java=2.11.1-2
-
+FROM gcr.io/distroless/nodejs:18
 ARG BUILD_DATE
 ARG VCS_REF
 LABEL maintainer="Bjoern Kimminich <bjoern.kimminich@owasp.org>" \
@@ -19,24 +25,13 @@ LABEL maintainer="Bjoern Kimminich <bjoern.kimminich@owasp.org>" \
     org.opencontainers.image.vendor="Open Web Application Security Project" \
     org.opencontainers.image.documentation="https://help.owasp-juice.shop" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.version="12.3.0" \
+    org.opencontainers.image.version="15.0.0" \
     org.opencontainers.image.url="https://owasp-juice.shop" \
-    org.opencontainers.image.source="https://github.com/clintonherget/juice-shop" \
+    org.opencontainers.image.source="https://github.com/juice-shop/juice-shop" \
     org.opencontainers.image.revision=$VCS_REF \
-    org.opencontainers.image.created=$BUILD_DATE \
-    io.snyk.containers.image.dockerfile="/Dockerfile"
-
-RUN addgroup --system --gid 1001 juicer && \
-    adduser juicer --system --uid 1001 --ingroup juicer
-COPY --chown=juicer . /juice-shop
+    org.opencontainers.image.created=$BUILD_DATE
 WORKDIR /juice-shop
-RUN npm install --production --unsafe-perm
-RUN npm dedupe
-RUN rm -rf frontend/node_modules
-RUN mkdir logs && \
-    chown -R juicer logs && \
-    chgrp -R 0 ftp/ frontend/dist/ logs/ data/ i18n/ && \
-    chmod -R g=u ftp/ frontend/dist/ logs/ data/ i18n/
-USER 1001
+COPY --from=installer --chown=65532:0 /juice-shop .
+USER 65532
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["/juice-shop/build/app.js"]
