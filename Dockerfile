@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:18 as installer
 
 RUN apt-get -y update && apt-get -y install ca-certificates apt-transport-https
 
